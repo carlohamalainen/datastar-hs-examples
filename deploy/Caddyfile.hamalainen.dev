@@ -1,0 +1,41 @@
+hamalainen.dev {
+    redir /datastar-hs/hello-world-warp /datastar-hs/hello-world-warp/ 308
+    handle_path /datastar-hs/hello-world-warp/* {
+        reverse_proxy localhost:4000
+    }
+
+    redir /datastar-hs/hello-world-channel /datastar-hs/hello-world-channel/ 308
+    handle_path /datastar-hs/hello-world-channel/* {
+        reverse_proxy localhost:4001
+    }
+
+    redir /datastar-hs/activity-feed /datastar-hs/activity-feed/ 308
+    handle_path /datastar-hs/activity-feed/* {
+        reverse_proxy localhost:4002
+    }
+
+    redir /datastar-hs/heap-simple-list /datastar-hs/heap-simple-list/ 308
+    handle_path /datastar-hs/heap-simple-list/* {
+        reverse_proxy localhost:4003
+    }
+
+    redir /datastar-hs/heap-live-map /datastar-hs/heap-live-map/ 308
+    handle_path /datastar-hs/heap-live-map/* {
+        reverse_proxy localhost:4004
+    }
+
+    redir /datastar-hs/heap-live-fibs /datastar-hs/heap-live-fibs/ 308
+    handle_path /datastar-hs/heap-live-fibs/* {
+        reverse_proxy localhost:4005
+    }
+
+    redir /datastar-hs/hello-world-servant /datastar-hs/hello-world-servant/ 308
+    handle_path /datastar-hs/hello-world-servant/* {
+        reverse_proxy localhost:4006
+    }
+
+    handle {
+        root * /var/www/hamalainen.dev
+        file_server
+    }
+}

@@ -1,0 +1,142 @@
+- name: Build and deploy datastar-hs examples
+  hosts: droplet
+
+  vars:
+    deploy_dir: /opt/datastar-hs
+    executables:
+      - hello-world-warp
+      - hello-world-servant
+      - hello-world-channel
+      - activity-feed
+      - heap-view
+
+    services:
+      - name: datastar-hello-world-warp
+        description: Datastar Hello World (Warp)
+        exec: hello-world-warp 4000
+      - name: datastar-hello-world-servant
+        description: Datastar Hello World (Servant)
+        exec: hello-world-servant 4006
+      - name: datastar-hello-world-channel
+        description: Datastar Hello World Channel
+        exec: hello-world-channel 4001
+      - name: datastar-activity-feed
+        description: Datastar Activity Feed
+        exec: activity-feed 4002
+      - name: datastar-heap-simple-list
+        description: Datastar Heap View (simple-list)
+        exec: heap-view simple-list 4003
+      - name: datastar-heap-live-map
+        description: Datastar Heap View (live-map)
+        exec: heap-view live-map 4004
+      - name: datastar-heap-live-fibs
+        description: Datastar Heap View (live-fibs)
+        exec: heap-view live-fibs 4005
+
+  tasks:
+    - name: Build static binaries locally
+      delegate_to: localhost
+      become: false
+      block:
+        - name: Run cabal build
+          ansible.builtin.command:
+            cmd: cabal build all --enable-executable-static
+            chdir: "{{ playbook_dir }}"
+          changed_when: true
+
+        - name: Create local static-build directory
+          ansible.builtin.file:
+            path: "{{ playbook_dir }}/static-build"
+            state: directory
+            mode: "0755"
+
+        - name: Get binary paths from cabal
+          ansible.builtin.command:
+            cmd: "cabal list-bin {{ item }}"
+            chdir: "{{ playbook_dir }}"
+          loop: "{{ executables }}"
+          register: bin_paths
+          changed_when: false
+
+        - name: Copy and strip binaries
+          ansible.builtin.shell:
+            cmd: "cp {{ item.stdout_lines[-1] }} {{ playbook_dir }}/static-build/{{ item.item }} && strip {{ playbook_dir }}/static-build/{{ item.item }}"
+          loop: "{{ bin_paths.results }}"
+          changed_when: true
+
+    - name: Create remote directories
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - ""
+        - examples
+
+    - name: Copy binaries
+      ansible.builtin.copy:
+        src: "static-build/{{ item }}"
+        dest: "{{ deploy_dir }}/{{ item }}"
+        mode: "0755"
+      loop: "{{ executables }}"
+      notify: Restart services
+
+    - name: Copy index.html
+      ansible.builtin.copy:
+        src: deploy/index.html
+        dest: /var/www/hamalainen.dev/index.html
+        mode: "0644"
+
+    - name: Copy HTML files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ deploy_dir }}/examples/"
+        mode: "0644"
+      with_fileglob:
+        - examples/*.html
+      notify: Restart services
+
+    - name: Install systemd units
+      ansible.builtin.template:
+        src: deploy/datastar-hs.service.j2
+        dest: /etc/systemd/system/{{ item.name }}.service
+        mode: "0644"
+      loop: "{{ services }}"
+      notify:
+        - Reload systemd
+        - Restart services
+
+    - name: Enable services
+      ansible.builtin.systemd:
+        name: "{{ item.name }}"
+        enabled: true
+      loop: "{{ services }}"
+
+    - name: Create Caddy sites directory
+      ansible.builtin.file:
+        path: /etc/caddy/sites
+        state: directory
+        mode: "0755"
+
+    - name: Copy Caddy config for hamalainen.dev
+      ansible.builtin.copy:
+        src: deploy/Caddyfile.hamalainen.dev
+        dest: /etc/caddy/sites/hamalainen.dev
+        mode: "0644"
+      notify: Reload Caddy
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart services
+      ansible.builtin.systemd:
+        name: "{{ item.name }}"
+        state: restarted
+      loop: "{{ services }}"
+
+    - name: Reload Caddy
+      ansible.builtin.systemd:
+        name: caddy
+        state: reloaded
