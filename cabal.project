@@ -4,4 +4,4 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/carlohamalainen/datastar-hs.git
-  tag: 4027eaa01ecc62ed192e85b03a8979116edadead
+  tag: 7dd94dc48e8f20df21e02274575d08560c740704
